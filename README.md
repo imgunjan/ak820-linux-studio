@@ -7,7 +7,7 @@ A small native **Linux** Python/Tkinter utility for the stock **AJAZZ AK820 Pro*
 ## Supported and unsupported
 
 - Supported target: USB `0c45:8009` or `0c45:800a`, vendor HID usage pages `0xFF13` (control) and `0xFF68` (screen data).
-- Implemented: read-only `probe`, select preview+upload PNG/JPEG/BMP/WebP, animated GIF (up to 60 frames by default, configurable in CLI), generate a simple text graphic, sync clock to Linux time.
+- Implemented: read-only `probe`, preview and upload PNG/JPEG/BMP/WebP, animated GIF playback, image rotation and brightness, configurable text cards, and clock sync to Linux time.
 - Not implemented: keyboard key-remapping, firmware flashing, RGB configuration, wireless transfer, `0xFF67` / newer variant protocol, live system-monitor screen, autosync service.
 - Requires keyboard in **wired USB mode** and a **USB data cable**. 2.4 GHz and Bluetooth do not expose the required vendor endpoints.
 
@@ -37,17 +37,31 @@ Requires Linux, Python 3.10 or newer, Tkinter for the GUI, and Pillow (installed
 
 If you want a menu launcher, run `./install-desktop.sh` **after** moving the folder into its permanent location. This uses the system's standard keyboard icon.
 
+## Screen editor
+
+- **Image / GIF:** choose a file, select cover/contain/stretch, rotate clockwise, and adjust image brightness from 0–200%. Photo EXIF orientation is applied automatically.
+- **Animated preview:** GIFs play in the preview with pause/resume, a frame counter, and the loop duration. Choose a speed from 0.25× to 4× and a frame limit from 1 to 255 (default 60). A one-frame limit creates a static screen.
+- **Text:** write multiple lines, select font size and alignment, and choose text and background colors. Long words wrap; messages too tall for the screen end with an ellipsis.
+
+Click **Apply changes** for image settings or **Use this text** for text settings. Upload is enabled only after the preview reflects the current settings. Preparing content and previewing animations do not send anything to the keyboard; click **Upload screen** when ready.
+
+The preview reports when a GIF exceeds the selected frame limit. Its playback uses the same frame delays as the upload, including the keyboard protocol's 2–510 ms range. Slow animations may have long pauses shortened; the editor reports this when it happens. Brightness adjusts the image pixels, not the keyboard's backlight.
+
 ## Terminal commands
 
 ```bash
 ./run.sh probe
 ./run.sh clock
 ./run.sh upload ~/Pictures/photo.png
+./run.sh upload ~/Pictures/photo.png --rotate 90 --brightness 1.2
 ./run.sh upload ~/Pictures/motion.gif --max-frames 40 --fit contain
+./run.sh upload ~/Pictures/motion.gif --speed 2
 ./run.sh gui
 ```
 
-`probe` is entirely read-only. Every other command writes only the known USB HID commands. No sudo is required after granting local-seat `udev` permission.
+`--rotate` accepts 0, 90, 180, or 270 degrees clockwise. CLI brightness uses a multiplier from 0 to 2 (1 is unchanged); `--speed` accepts 0.25 to 4. These settings use the same image preparation as the GUI.
+
+`probe` is entirely read-only. `clock` and `upload` send the known USB HID commands; `gui` opens the editor and waits for an explicit action. No sudo is required after granting local-seat `udev` permission.
 
 ## Diagnostics
 
@@ -58,21 +72,6 @@ ls -l /dev/hidraw*
 ```
 
 If `lsusb` lists a different VID:PID or `probe` shows a missing usage page, **do not spoof the ID or force uploads**. Send the command output to the developer so the interface and framing can be checked against the device's variant.
-
-If the protocol does not work, try an existing Chromium WebHID implementation first: <https://kabelklaus.github.io/ajazz-ak820-pro/>. The browser implementation includes alternate framing options and supports known board variations.
-
-## Credits and protocol references
-
-Original independent implementation, based on protocol details from:
-
-- https://github.com/Beattrey/ajazz-ak820-config (MIT) — byte-level description for AK820 Pro.
-- https://github.com/aar-rafi/aks075-linux (MIT) — 256-byte GIF header, `hidraw` zero-byte quirk, RGB565, ACK sequence for related hardware.
-- https://github.com/gohv/EPOMAKER-Ajazz-AK820-Pro (MIT) — AK820 Pro control report and clock reference.
-- https://github.com/kabelklaus/ajazz-ak820-pro (MIT) — browser-based alternative with two image framing variants.
-
-The open-source notes disagree on some transfer details, so this tool uses the Windows-capture-based AKS075 image framing with the AK820-compatible VID/PID+usage-page selection. It may not support every AK820 Pro production revision.
-
-MIT License; see `LICENSE`.
 
 ## Development and tests
 
@@ -99,10 +98,14 @@ python3 -m venv .venv
 
 Format Python files with `.venv/bin/python -m black .` before committing. Black is pinned in `requirements-dev.txt`, with shared formatting settings in `pyproject.toml`.
 
-The tests generate their image data in memory and do not require a keyboard or send USB commands. GitHub Actions checks Black formatting and runs the tests, CLI startup, and shell checks on Linux with Python 3.10, 3.12, and 3.14. Physical keyboard compatibility still requires manual testing.
+The tests generate their own images and temporary GIFs. They cover image transformations, GIF timing and truncation, text layout, preview playback, CLI options, and packet serialization. No keyboard is required; device access in CLI and GUI tests is mocked. GUI tests run when Tkinter and a graphical display are available and otherwise skip. GitHub Actions checks Black formatting and runs the tests, CLI startup, and shell checks on Linux with Python 3.10, 3.12, and 3.14. Physical keyboard compatibility still requires manual testing.
 
 The source lives in `ak820linux/`, automated tests in `tests/`, and setup helpers in the repository root. Local virtual environments, caches, editor settings, credentials, and personal test images are ignored by Git. Keep manual upload images in `local-media/`; shared automated image fixtures can go in `tests/fixtures/` and remain trackable. No sample photos or GIFs are required to run the app or tests.
 
 ## Permission fix in 0.1.1
 
 The `uaccess` rule is now named `70-ak820-linux.rules` (previously `99-...`), so it is evaluated before the systemd `73-seat-late.rules` access-control pass. The installer removes the obsolete `99-...` rule. After installation unplug/replug the keyboard; verify using `ls -l /dev/hidraw*` and `python -m ak820linux probe`. Avoid running the GUI with sudo.
+
+## License
+
+[MIT License](LICENSE).

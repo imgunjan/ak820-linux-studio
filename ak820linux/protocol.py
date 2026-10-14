@@ -1,7 +1,6 @@
 """Linux hidraw transport for AJAZZ AK820 Pro (stock firmware, classic HID protocol).
 
-Protocol implemented from public reverse-engineering notes by
-Beattrey/ajazz-ak820-config and aar-rafi/aks075-linux. No firmware updates.
+Protocol implemented from public reverse-engineering notes. No firmware updates.
 Only uses USB HID 0x0c45:0x8009/0x800a; requires usage pages FF13 & FF68.
 
 WARNING: Hardware-dependent, untested on this developer's physical keyboard.
