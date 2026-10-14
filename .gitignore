@@ -1,0 +1,49 @@
+# Python environments, bytecode, and packaging output
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Test, lint, and coverage caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Local environment, credentials, and assistant settings
+.env
+.env.*
+!.env.example
+/.aws/
+/.codex/
+/.agents/
+
+# Editor, operating-system, and temporary files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+*.log
+*.tmp
+
+# Personal images used for manual uploads; automated fixtures belong in tests/fixtures/
+/tests/*.png
+/tests/*.jpg
+/tests/*.jpeg
+/tests/*.gif
+/tests/*.bmp
+/tests/*.webp
+/local-media/
