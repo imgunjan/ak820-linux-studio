@@ -24,7 +24,7 @@ CONTROL_USAGE = 0xFF13
 DATA_USAGE = 0xFF68
 FRAME_BYTES = 128 * 128 * 2
 CHUNK_SIZE = 4096
-SYS_HIDRAW = Path('/sys/class/hidraw')
+SYS_HIDRAW = Path("/sys/class/hidraw")
 
 
 def _usage_page(descriptor: bytes) -> int | None:
@@ -42,7 +42,7 @@ def _usage_page(descriptor: bytes) -> int | None:
         if i + 1 + size > len(descriptor):
             break
         if item & 0xFC == 0x04 and size:
-            page = int.from_bytes(descriptor[i + 1:i + 1 + size], 'little')
+            page = int.from_bytes(descriptor[i + 1 : i + 1 + size], "little")
             pages.append(page)
         i += 1 + size
     for page in pages:
@@ -61,9 +61,9 @@ class InterfacePair:
 
 def _usb_identity(uevent: str) -> tuple[int, int] | None:
     for line in uevent.splitlines():
-        if line.startswith('HID_ID='):
+        if line.startswith("HID_ID="):
             try:
-                _bus, vendor, product = line[7:].split(':')
+                _bus, vendor, product = line[7:].split(":")
                 return int(vendor, 16), int(product, 16)
             except ValueError:
                 return None
@@ -75,15 +75,20 @@ def scan_interfaces(sys_root: Path = SYS_HIDRAW) -> list[dict]:
     results = []
     if not sys_root.exists():
         return results
-    for entry in sorted(sys_root.glob('hidraw*')):
+    for entry in sorted(sys_root.glob("hidraw*")):
         try:
-            identity = _usb_identity((entry / 'device/uevent').read_text())
+            identity = _usb_identity((entry / "device/uevent").read_text())
             if identity is None or identity[0] != VENDOR or identity[1] not in PRODUCTS:
                 continue
-            desc = (entry / 'device/report_descriptor').read_bytes()
-            results.append({'path': Path('/dev') / entry.name,
-                            'vendor': identity[0], 'product': identity[1],
-                            'usage': _usage_page(desc)})
+            desc = (entry / "device/report_descriptor").read_bytes()
+            results.append(
+                {
+                    "path": Path("/dev") / entry.name,
+                    "vendor": identity[0],
+                    "product": identity[1],
+                    "usage": _usage_page(desc),
+                }
+            )
         except (OSError, ValueError):
             continue
     return results
@@ -92,14 +97,28 @@ def scan_interfaces(sys_root: Path = SYS_HIDRAW) -> list[dict]:
 def find_device(sys_root: Path = SYS_HIDRAW) -> InterfacePair:
     interfaces = scan_interfaces(sys_root)
     for pid in sorted(PRODUCTS):
-        control = next((x for x in interfaces if x['product'] == pid and x['usage'] == CONTROL_USAGE), None)
-        data = next((x for x in interfaces if x['product'] == pid and x['usage'] == DATA_USAGE), None)
+        control = next(
+            (
+                x
+                for x in interfaces
+                if x["product"] == pid and x["usage"] == CONTROL_USAGE
+            ),
+            None,
+        )
+        data = next(
+            (x for x in interfaces if x["product"] == pid and x["usage"] == DATA_USAGE),
+            None,
+        )
         if control and data:
-            return InterfacePair(VENDOR, pid, control['path'], data['path'])
+            return InterfacePair(VENDOR, pid, control["path"], data["path"])
     if interfaces:
-        lines = ', '.join(f"{i['path']}:usage={i['usage']!r}" for i in interfaces)
-        raise RuntimeError(f'Found an AJAZZ/Sonix USB device, but not the required FF13+FF68 screen interfaces. {lines}. This firmware may use a different protocol.')
-    raise RuntimeError('AK820 Pro not detected (expected USB VID 0c45, PID 8009 or 800a). Connect a USB data cable, switch to wired mode, and run lsusb.')
+        lines = ", ".join(f"{i['path']}:usage={i['usage']!r}" for i in interfaces)
+        raise RuntimeError(
+            f"Found an AJAZZ/Sonix USB device, but not the required FF13+FF68 screen interfaces. {lines}. This firmware may use a different protocol."
+        )
+    raise RuntimeError(
+        "AK820 Pro not detected (expected USB VID 0c45, PID 8009 or 800a). Connect a USB data cable, switch to wired mode, and run lsusb."
+    )
 
 
 def command_packet(cmd: int, sub: int = 0, flag: int = 1) -> bytes:
@@ -110,20 +129,20 @@ def command_packet(cmd: int, sub: int = 0, flag: int = 1) -> bytes:
 
 def time_data_packet(dt: datetime) -> bytes:
     if not (2000 <= dt.year <= 2255):
-        raise ValueError('Year out of 8-bit range')
+        raise ValueError("Year out of 8-bit range")
     b = bytearray(64)
-    b[0:3] = b'\x00\x01\x5a'
+    b[0:3] = b"\x00\x01\x5a"
     b[3:9] = bytes((dt.year - 2000, dt.month, dt.day, dt.hour, dt.minute, dt.second))
     b[10] = 4
-    b[62:64] = b'\xaa\x55'
+    b[62:64] = b"\xaa\x55"
     return bytes(b)
 
 
 def image_header(delays_ms: list[int] | None = None) -> bytes:
     delays = [0] if delays_ms is None else delays_ms
     if not (1 <= len(delays) <= 255):
-        raise ValueError('Frame count must be 1 to 255')
-    hdr = bytearray(b'\xff' * 256)
+        raise ValueError("Frame count must be 1 to 255")
+    hdr = bytearray(b"\xff" * 256)
     hdr[0] = len(delays)
     for i, delay in enumerate(delays):
         hdr[i + 1] = 0 if len(delays) == 1 else max(1, min(255, round(delay / 2)))
@@ -132,19 +151,19 @@ def image_header(delays_ms: list[int] | None = None) -> bytes:
 
 def image_payload(frames: list[bytes], delays_ms: list[int] | None = None) -> bytes:
     if not (1 <= len(frames) <= 255):
-        raise ValueError('Expected 1 to 255 frames')
+        raise ValueError("Expected 1 to 255 frames")
     if any(len(frame) != FRAME_BYTES for frame in frames):
-        raise ValueError(f'Every frame must contain {FRAME_BYTES} RGB565 bytes')
+        raise ValueError(f"Every frame must contain {FRAME_BYTES} RGB565 bytes")
     if delays_ms is not None and len(delays_ms) != len(frames):
-        raise ValueError('Frame/delay counts do not match')
-    payload = image_header(delays_ms if len(frames) > 1 else None) + b''.join(frames)
+        raise ValueError("Frame/delay counts do not match")
+    payload = image_header(delays_ms if len(frames) > 1 else None) + b"".join(frames)
     pad = (-len(payload)) % CHUNK_SIZE
-    return payload + b'\xff' * pad
+    return payload + b"\xff" * pad
 
 
 def _ioctl_request(report_number: int, report_length: int = 65) -> int:
     # Linux HIDIOCSFEATURE/HIDIOCGFEATURE = _IOC(_IOC_READ|_IOC_WRITE, 'H', n, length)
-    return 0xC0000000 | (report_length << 16) | (ord('H') << 8) | report_number
+    return 0xC0000000 | (report_length << 16) | (ord("H") << 8) | report_number
 
 
 class Keyboard:
@@ -160,12 +179,14 @@ class Keyboard:
         except OSError as exc:
             self.__exit__(None, None, None)
             if isinstance(exc, PermissionError):
-                raise PermissionError('Access denied to hidraw. Run ./install-udev.sh once, then unplug/reconnect USB.') from exc
+                raise PermissionError(
+                    "Access denied to hidraw. Run ./install-udev.sh once, then unplug/reconnect USB."
+                ) from exc
             raise
         return self
 
     def __exit__(self, *_args):
-        for field in ('control_fd', 'data_fd'):
+        for field in ("control_fd", "data_fd"):
             fd = getattr(self, field)
             if fd is not None:
                 os.close(fd)
@@ -173,14 +194,14 @@ class Keyboard:
 
     def send_feature(self, payload: bytes):
         if self.control_fd is None or len(payload) != 64:
-            raise ValueError('Feature payload must be 64 bytes and device must be open')
+            raise ValueError("Feature payload must be 64 bytes and device must be open")
         # Report ID 0x00, followed by 64-byte command payload.
-        fcntl.ioctl(self.control_fd, _ioctl_request(0x06), b'\x00' + payload)
+        fcntl.ioctl(self.control_fd, _ioctl_request(0x06), b"\x00" + payload)
         time.sleep(0.04)
 
     def handshake(self):
         if self.control_fd is None:
-            raise RuntimeError('Not connected')
+            raise RuntimeError("Not connected")
         try:
             buf = bytearray(65)
             fcntl.ioctl(self.control_fd, _ioctl_request(0x07), buf, True)
@@ -198,17 +219,17 @@ class Keyboard:
 
     def _write_data(self, data: bytes):
         if self.data_fd is None or len(data) != CHUNK_SIZE:
-            raise ValueError('Data report must contain exactly 4096 bytes')
+            raise ValueError("Data report must contain exactly 4096 bytes")
         # hidraw consumes a leading zero report ID; device receives exactly 4096 bytes.
-        buf = b'\x00' + data
+        buf = b"\x00" + data
         written = os.write(self.data_fd, buf)
         if written != len(buf):
             # HID reports are atomic; never send the remainder as a new report.
-            raise OSError(f'Incomplete USB HID report: sent {written}/{len(buf)} bytes')
+            raise OSError(f"Incomplete USB HID report: sent {written}/{len(buf)} bytes")
 
     def _read_ack(self):
         if self.data_fd is None:
-            raise RuntimeError('Not connected')
+            raise RuntimeError("Not connected")
         ready, _, _ = select.select([self.data_fd], [], [], 0.30)
         if ready:
             try:
@@ -217,20 +238,24 @@ class Keyboard:
                 pass
         return None
 
-    def upload(self, frames: list[bytes], delays_ms: list[int] | None = None,
-               on_progress: Callable[[int, int], None] | None = None):
+    def upload(
+        self,
+        frames: list[bytes],
+        delays_ms: list[int] | None = None,
+        on_progress: Callable[[int, int], None] | None = None,
+    ):
         payload = image_payload(frames, delays_ms)
         chunks = len(payload) // CHUNK_SIZE
         if chunks > 65535:
-            raise ValueError('Image payload too large')
+            raise ValueError("Image payload too large")
         self.send_feature(command_packet(0x18, flag=0))
         self.handshake()
         cfg = bytearray(command_packet(0x72, sub=0x03, flag=0))
-        cfg[8:10] = chunks.to_bytes(2, 'little')
+        cfg[8:10] = chunks.to_bytes(2, "little")
         self.send_feature(bytes(cfg))
         self.handshake()
         for idx in range(chunks):
-            self._write_data(payload[idx * CHUNK_SIZE:(idx + 1) * CHUNK_SIZE])
+            self._write_data(payload[idx * CHUNK_SIZE : (idx + 1) * CHUNK_SIZE])
             self._read_ack()
             if on_progress:
                 on_progress(idx + 1, chunks)

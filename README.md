@@ -79,6 +79,8 @@ MIT License; see `LICENSE`.
 From the repository root, create the environment with `./setup.sh`, then run:
 
 ```bash
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m black --check .
 .venv/bin/python -m unittest discover -s tests -v
 ./run.sh --help
 for script in ./*.sh; do
@@ -90,11 +92,14 @@ For a headless development environment, Tkinter is not needed for the tests:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m black --check .
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-The tests generate their image data in memory and do not require a keyboard or send USB commands. GitHub Actions runs the tests, CLI startup, and shell checks on Linux with Python 3.10, 3.12, and 3.14. Physical keyboard compatibility still requires manual testing.
+Format Python files with `.venv/bin/python -m black .` before committing. Black is pinned in `requirements-dev.txt`, with shared formatting settings in `pyproject.toml`.
+
+The tests generate their image data in memory and do not require a keyboard or send USB commands. GitHub Actions checks Black formatting and runs the tests, CLI startup, and shell checks on Linux with Python 3.10, 3.12, and 3.14. Physical keyboard compatibility still requires manual testing.
 
 The source lives in `ak820linux/`, automated tests in `tests/`, and setup helpers in the repository root. Local virtual environments, caches, editor settings, credentials, and personal test images are ignored by Git. Keep manual upload images in `local-media/`; shared automated image fixtures can go in `tests/fixtures/` and remain trackable. No sample photos or GIFs are required to run the app or tests.
 
